@@ -35,7 +35,7 @@ def buscar_vagas():
     vagas = []
     vagas_vistas = carregar_vagas_vistas()
 
-    KEYWORDS = ["product owner", "coordenador de ti", "product manager"]
+    KEYWORDS = ["product owner", "product manager", "coordenador de ti"]
 
     jobs = soup.find_all("a", class_="base-card__full-link")
 
@@ -57,7 +57,7 @@ def buscar_vagas():
                 score += 1
 
             vaga_formatada = {
-                "titulo": titulo.title() if titulo else "Sem título",
+                "titulo": titulo.title(),
                 "link": link,
                 "score": score
             }
@@ -69,6 +69,7 @@ def buscar_vagas():
 
     salvar_vagas_vistas(vagas_vistas)
 
+    # 🔥 Ordena por score (relevância)
     vagas = sorted(vagas, key=lambda x: x["score"], reverse=True)
 
     return vagas

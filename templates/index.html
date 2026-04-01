@@ -1,184 +1,56 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-br">
 <head>
+    <meta charset="UTF-8">
     <title>Radar de Vagas</title>
-
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="manifest" href="/static/manifest.json">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <style>
         body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #f4f6f8;
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: #fff;
+            padding: 20px;
         }
 
-        .header {
-            background: #0073b1;
-            color: white;
-            padding: 15px;
+        h1 {
             text-align: center;
-            font-size: 20px;
-            font-weight: bold;
-            position: sticky;
-            top: 0;
-        }
-
-        .container {
-            padding: 15px;
         }
 
         .vaga {
-            background: white;
+            background: #1e293b;
             padding: 15px;
-            margin-bottom: 12px;
-            border-radius: 12px;
-            box-shadow: 0px 3px 8px rgba(0,0,0,0.08);
-            transition: 0.2s;
+            margin: 10px 0;
+            border-radius: 8px;
         }
 
-        .vaga:hover {
-            transform: scale(1.01);
-        }
-
-        .vaga a {
+        a {
+            color: #38bdf8;
             text-decoration: none;
-            color: #333;
-            font-size: 16px;
             font-weight: bold;
         }
 
         .score {
-            margin-top: 6px;
-            font-size: 12px;
-            color: #666;
-        }
-
-        .top {
-            border-left: 5px solid #28a745;
-        }
-
-        .badge {
-            display: inline-block;
-            background: #28a745;
-            color: white;
-            font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 6px;
-            margin-left: 6px;
-        }
-
-        .aplicado {
-            background-color: #d4edda;
-        }
-
-        button {
-            margin-top: 10px;
-            width: 100%;
-            padding: 10px;
-            border: none;
-            background: #0073b1;
-            color: white;
-            border-radius: 8px;
-            font-size: 14px;
-            cursor: pointer;
-        }
-
-        .notificacao-btn {
-            margin-bottom: 15px;
-            background: #ff9800;
-        }
-
-        .empty {
-            text-align: center;
-            color: #777;
-            margin-top: 40px;
+            color: #facc15;
         }
     </style>
 </head>
-
 <body>
 
-<div class="header">
-    🚀 Radar de Vagas
-</div>
+    <h1>🚀 Vagas (últimas 24h)</h1>
 
-<div class="container">
-
-    <button class="notificacao-btn" onclick="pedirPermissao()">
-        🔔 Ativar notificações
-    </button>
-
-    {% if vagas|length == 0 %}
-        <div class="empty">
-            Nenhuma vaga encontrada 😢
-        </div>
-    {% endif %}
-
-    {% for vaga in vagas %}
-        <div class="vaga {% if vaga.score >= 2 %}top{% endif %}" id="vaga{{ loop.index }}">
-            
-            <a href="{{ vaga.link }}" target="_blank">
-                {{ vaga.titulo }}
-                {% if vaga.score >= 2 %}
-                    <span class="badge">🔥 Alta relevância</span>
-                {% endif %}
-            </a>
-
-            <div class="score">
-                Score: {{ vaga.score }}
+    {% if vagas %}
+        {% for vaga in vagas %}
+            <div class="vaga">
+                <a href="{{ vaga.link }}" target="_blank">
+                    {{ vaga.titulo }}
+                </a>
+                <p class="score">Score: {{ vaga.score }}</p>
             </div>
-
-            <button onclick="marcarAplicado('vaga{{ loop.index }}')">
-                ✅ Já apliquei
-            </button>
-
-        </div>
-    {% endfor %}
-
-</div>
-
-<script>
-function marcarAplicado(id) {
-    localStorage.setItem(id, "aplicado");
-    document.getElementById(id).classList.add("aplicado");
-}
-
-function carregarStatus() {
-    let vagas = document.getElementsByClassName("vaga");
-    for (let vaga of vagas) {
-        let id = vaga.id;
-        if (localStorage.getItem(id) === "aplicado") {
-            vaga.classList.add("aplicado");
-        }
-    }
-}
-
-function pedirPermissao() {
-    Notification.requestPermission().then(permission => {
-        if (permission === "granted") {
-            alert("Notificações ativadas 🚀");
-        }
-    });
-}
-
-// 🔔 ALERTA DE NOVAS VAGAS (backend)
-let novas = {{ novas_vagas|tojson }};
-
-if (novas.length > 0) {
-    setTimeout(() => {
-        alert("🚀 " + novas.length + " novas vagas encontradas!");
-    }, 500);
-}
-
-// registrar service worker
-if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/static/sw.js")
-        .then(() => console.log("Service Worker registrado"));
-}
-
-window.onload = carregarStatus;
-</script>
+        {% endfor %}
+    {% else %}
+        <p>Nenhuma vaga encontrada.</p>
+    {% endif %}
 
 </body>
 </html>
