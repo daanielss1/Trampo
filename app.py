@@ -10,66 +10,83 @@ ARQUIVO_VAGAS = "vagas_vistas.json"
 
 
 def carregar_vagas_vistas():
-    if os.path.exists(ARQUIVO_VAGAS):
-        with open(ARQUIVO_VAGAS, "r") as f:
-            return json.load(f)
+    try:
+        if os.path.exists(ARQUIVO_VAGAS):
+            with open(ARQUIVO_VAGAS, "r") as f:
+                return json.load(f)
+    except:
+        return []
     return []
 
 
 def salvar_vagas_vistas(vagas):
-    with open(ARQUIVO_VAGAS, "w") as f:
-        json.dump(vagas, f)
+    try:
+        with open(ARQUIVO_VAGAS, "w") as f:
+            json.dump(vagas, f)
+    except:
+        pass
 
 
 def buscar_vagas():
     url = "https://www.linkedin.com/jobs/search?keywords=product%20owner&location=Brazil&f_TPR=r86400"
-    headers = {"User-Agent": "Mozilla/5.0"}
-
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-    except:
-        return []
-
-    soup = BeautifulSoup(response.text, "html.parser")
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
 
     vagas = []
     vagas_vistas = carregar_vagas_vistas()
 
     KEYWORDS = ["product owner", "product manager", "coordenador de ti"]
 
-    jobs = soup.find_all("a", class_="base-card__full-link")
+    try:
+        response = requests.get(url, headers=headers, timeout=8)
 
-    for job in jobs[:30]:
-        titulo = job.text.strip().lower() if job.text else ""
-        link = job.get("href")
+        if response.status_code != 200:
+            print("Erro ao acessar LinkedIn:", response.status_code)
+            return []
 
-        if not link:
-            continue
+        soup = BeautifulSoup(response.text, "html.parser")
+        jobs = soup.find_all("a", class_="base-card__full-link")
 
-        if any(k in titulo for k in KEYWORDS):
+        for job in jobs[:30]:
+            try:
+                titulo = job.text.strip().lower() if job.text else ""
+                link = job.get("href")
 
-            score = 0
-            if "senior" in titulo:
-                score += 2
-            if "agile" in titulo:
-                score += 1
-            if "scrum" in titulo:
-                score += 1
+                if not link:
+                    continue
 
-            vaga_formatada = {
-                "titulo": titulo.title(),
-                "link": link,
-                "score": score
-            }
+                if any(k in titulo for k in KEYWORDS):
 
-            if link not in vagas_vistas:
-                vagas_vistas.append(link)
+                    score = 0
+                    if "senior" in titulo:
+                        score += 2
+                    if "agile" in titulo:
+                        score += 1
+                    if "scrum" in titulo:
+                        score += 1
 
-            vagas.append(vaga_formatada)
+                    vaga = {
+                        "titulo": titulo.title() if titulo else "Sem título",
+                        "link": link,
+                        "score": score
+                    }
+
+                    if link not in vagas_vistas:
+                        vagas_vistas.append(link)
+
+                    vagas.append(vaga)
+
+            except Exception as e:
+                print("Erro ao processar vaga:", e)
+                continue
+
+    except Exception as e:
+        print("Erro geral scraping:", e)
+        return []
 
     salvar_vagas_vistas(vagas_vistas)
 
-    # 🔥 Ordena por score (relevância)
     vagas = sorted(vagas, key=lambda x: x["score"], reverse=True)
 
     return vagas
@@ -77,8 +94,12 @@ def buscar_vagas():
 
 @app.route("/")
 def home():
-    vagas = buscar_vagas() or []
-    return render_template("index.html", vagas=vagas)
+    try:
+        vagas = buscar_vagas()
+        return render_template("index.html", vagas=vagas)
+    except Exception as e:
+        print("Erro na rota:", e)
+        return "Erro interno, tente novamente"
 
 
 if __name__ == "__main__":
