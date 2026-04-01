@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Radar de Vagas</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            background-color: #f4f6f8;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+        }
+
+        .vaga {
+            background: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 10px;
+            box-shadow: 0px 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .aplicado {
+            background-color: #d4edda;
+        }
+
+        button {
+            margin-top: 10px;
+            padding: 5px 10px;
+            border: none;
+            background: #28a745;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+
+    <script>
+        function marcarAplicado(id) {
+            localStorage.setItem(id, "aplicado");
+            document.getElementById(id).classList.add("aplicado");
+        }
+
+        function carregarStatus() {
+            let vagas = document.getElementsByClassName("vaga");
+            for (let vaga of vagas) {
+                let id = vaga.id;
+                if (localStorage.getItem(id) === "aplicado") {
+                    vaga.classList.add("aplicado");
+                }
+            }
+        }
+
+        window.onload = carregarStatus;
+    </script>
+
+</head>
+
+<body>
+
+<div class="container">
+    <h1>🚀 Radar de Vagas</h1>
+
+    {% for vaga in vagas %}
+        <div class="vaga" id="vaga{{ loop.index }}">
+            <a href="{{ vaga.link }}" target="_blank">
+                {{ vaga.titulo }}
+            </a>
+
+            <div>Score: {{ vaga.score }}</div>
+
+            <button onclick="marcarAplicado('vaga{{ loop.index }}')">
+                Já apliquei
+            </button>
+        </div>
+    {% endfor %}
+</div>
+
+</body>
+</html>
