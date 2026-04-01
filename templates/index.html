@@ -37,6 +37,10 @@
             transition: 0.2s;
         }
 
+        .vaga:hover {
+            transform: scale(1.01);
+        }
+
         .vaga a {
             text-decoration: none;
             color: #333;
@@ -44,18 +48,24 @@
             font-weight: bold;
         }
 
-        .vaga:hover {
-            transform: scale(1.01);
-        }
-
         .score {
-            margin-top: 5px;
+            margin-top: 6px;
             font-size: 12px;
             color: #666;
         }
 
         .top {
             border-left: 5px solid #28a745;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 6px;
+            margin-left: 6px;
         }
 
         .aplicado {
@@ -71,11 +81,18 @@
             color: white;
             border-radius: 8px;
             font-size: 14px;
+            cursor: pointer;
         }
 
         .notificacao-btn {
             margin-bottom: 15px;
             background: #ff9800;
+        }
+
+        .empty {
+            text-align: center;
+            color: #777;
+            margin-top: 40px;
         }
     </style>
 </head>
@@ -92,11 +109,20 @@
         🔔 Ativar notificações
     </button>
 
+    {% if vagas|length == 0 %}
+        <div class="empty">
+            Nenhuma vaga encontrada 😢
+        </div>
+    {% endif %}
+
     {% for vaga in vagas %}
         <div class="vaga {% if vaga.score >= 2 %}top{% endif %}" id="vaga{{ loop.index }}">
             
             <a href="{{ vaga.link }}" target="_blank">
                 {{ vaga.titulo }}
+                {% if vaga.score >= 2 %}
+                    <span class="badge">🔥 Alta relevância</span>
+                {% endif %}
             </a>
 
             <div class="score">
@@ -134,6 +160,15 @@ function pedirPermissao() {
             alert("Notificações ativadas 🚀");
         }
     });
+}
+
+// 🔔 ALERTA DE NOVAS VAGAS (backend)
+let novas = {{ novas_vagas|tojson }};
+
+if (novas.length > 0) {
+    setTimeout(() => {
+        alert("🚀 " + novas.length + " novas vagas encontradas!");
+    }, 500);
 }
 
 // registrar service worker
