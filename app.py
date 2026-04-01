@@ -58,7 +58,7 @@ def enviar_email(novas_vagas):
 
 # 🔹 Buscar vagas
 def buscar_vagas():
-    url = "https://www.linkedin.com/jobs/search?keywords=product%20owner&location=Brazil&f_TPR=r86400"
+    url = "https://www.linkedin.com/jobs/search?keywords=product%20owner&location=Brazil&f_TPR=r432000"
     headers = {"User-Agent": "Mozilla/5.0"}
 
     response = requests.get(url, headers=headers)
@@ -68,7 +68,7 @@ def buscar_vagas():
     vagas_vistas = carregar_vagas_vistas()
     novas_vagas = []
 
-    KEYWORDS = ["product owner", "agile", "scrum", "product manager"]
+    KEYWORDS = ["product owner", "coordenador de TI", "product manager"]
 
     jobs = soup.find_all("a", class_="base-card__full-link")
 
