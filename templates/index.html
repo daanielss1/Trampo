@@ -2,26 +2,60 @@
 <html>
 <head>
     <title>Radar de Vagas</title>
-	<link rel="manifest" href="/static/manifest.json">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="manifest" href="/static/manifest.json">
 
     <style>
         body {
-            font-family: Arial;
-            background-color: #f4f6f8;
-            padding: 20px;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f4f6f8;
+        }
+
+        .header {
+            background: #0073b1;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
         }
 
         .container {
-            max-width: 800px;
-            margin: auto;
+            padding: 15px;
         }
 
         .vaga {
             background: white;
             padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 10px;
-            box-shadow: 0px 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 12px;
+            border-radius: 12px;
+            box-shadow: 0px 3px 8px rgba(0,0,0,0.08);
+            transition: 0.2s;
+        }
+
+        .vaga a {
+            text-decoration: none;
+            color: #333;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .vaga:hover {
+            transform: scale(1.01);
+        }
+
+        .score {
+            margin-top: 5px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .top {
+            border-left: 5px solid #28a745;
         }
 
         .aplicado {
@@ -30,55 +64,86 @@
 
         button {
             margin-top: 10px;
-            padding: 5px 10px;
+            width: 100%;
+            padding: 10px;
             border: none;
-            background: #28a745;
+            background: #0073b1;
             color: white;
-            border-radius: 5px;
-            cursor: pointer;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .notificacao-btn {
+            margin-bottom: 15px;
+            background: #ff9800;
         }
     </style>
-
-    <script>
-        function marcarAplicado(id) {
-            localStorage.setItem(id, "aplicado");
-            document.getElementById(id).classList.add("aplicado");
-        }
-
-        function carregarStatus() {
-            let vagas = document.getElementsByClassName("vaga");
-            for (let vaga of vagas) {
-                let id = vaga.id;
-                if (localStorage.getItem(id) === "aplicado") {
-                    vaga.classList.add("aplicado");
-                }
-            }
-        }
-
-        window.onload = carregarStatus;
-    </script>
-
 </head>
 
 <body>
 
+<div class="header">
+    🚀 Radar de Vagas
+</div>
+
 <div class="container">
-    <h1>🚀 Radar de Vagas</h1>
+
+    <button class="notificacao-btn" onclick="pedirPermissao()">
+        🔔 Ativar notificações
+    </button>
 
     {% for vaga in vagas %}
-        <div class="vaga" id="vaga{{ loop.index }}">
+        <div class="vaga {% if vaga.score >= 2 %}top{% endif %}" id="vaga{{ loop.index }}">
+            
             <a href="{{ vaga.link }}" target="_blank">
                 {{ vaga.titulo }}
             </a>
 
-            <div>Score: {{ vaga.score }}</div>
+            <div class="score">
+                Score: {{ vaga.score }}
+            </div>
 
             <button onclick="marcarAplicado('vaga{{ loop.index }}')">
-                Já apliquei
+                ✅ Já apliquei
             </button>
+
         </div>
     {% endfor %}
+
 </div>
+
+<script>
+function marcarAplicado(id) {
+    localStorage.setItem(id, "aplicado");
+    document.getElementById(id).classList.add("aplicado");
+}
+
+function carregarStatus() {
+    let vagas = document.getElementsByClassName("vaga");
+    for (let vaga of vagas) {
+        let id = vaga.id;
+        if (localStorage.getItem(id) === "aplicado") {
+            vaga.classList.add("aplicado");
+        }
+    }
+}
+
+function pedirPermissao() {
+    Notification.requestPermission().then(permission => {
+        if (permission === "granted") {
+            alert("Notificações ativadas 🚀");
+        }
+    });
+}
+
+// registrar service worker
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/static/sw.js")
+        .then(() => console.log("Service Worker registrado"));
+}
+
+window.onload = carregarStatus;
+</script>
 
 </body>
 </html>
