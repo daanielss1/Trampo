@@ -99,38 +99,46 @@
     <div id="todas">
         {% for vaga in vagas %}
             {% if not vaga.candidatado %}
-            <div class="vaga">
-                <a href="{{ vaga.link }}" target="_blank">
-                    {{ vaga.titulo }}
-                </a>
+                <div class="vaga">
+                    <a href="{{ vaga.link }}" target="_blank">
+                        {{ vaga.titulo }}
+                    </a>
 
-                <br>
+                    <br>
 
-                <a href="/candidatar/{{ vaga.link }}">
-                    <button class="btn apply">Já apliquei</button>
-                </a>
-            </div>
+                    <a href="/candidatar/{{ vaga.link }}">
+                        <button class="btn apply">Já apliquei</button>
+                    </a>
+                </div>
             {% endif %}
         {% endfor %}
     </div>
 
     <!-- 🔹 CANDIDATAS -->
     <div id="candidatas" class="hidden">
+
+        {% set has_candidatas = false %}
+
         {% for vaga in vagas %}
             {% if vaga.candidatado %}
-            <div class="vaga">
-                <a href="{{ vaga.link }}" target="_blank">
-                    {{ vaga.titulo }}
-                </a>
+                {% set has_candidatas = true %}
 
-                <br>
+                <div class="vaga">
+                    <a href="{{ vaga.link }}" target="_blank">
+                        {{ vaga.titulo }}
+                    </a>
 
-                <button class="btn done">✅ Já aplicado</button>
-            </div>
-            {% endfor %}
-        {% else %}
+                    <br>
+
+                    <button class="btn done">✅ Já aplicado</button>
+                </div>
+            {% endif %}
+        {% endfor %}
+
+        {% if not has_candidatas %}
             <p>Nenhuma candidatura ainda.</p>
         {% endif %}
+
     </div>
 
 </div>

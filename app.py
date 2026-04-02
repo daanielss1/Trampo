@@ -59,7 +59,7 @@ def buscar_vagas():
     KEYWORDS = ["product owner", "product manager", "coordenador de ti"]
 
     vagas = []
-    candidatas = carregar_json(ARQUIVO_CANDIDATAS)
+    candidatas = carregar_json(ARQUIVO_CANDIDATAS) or []
 
     try:
         response = requests.get(url, headers=headers, timeout=10)
@@ -67,10 +67,18 @@ def buscar_vagas():
         print("Status:", response.status_code)
         print("HTML size:", len(response.text))
 
-        # bloqueio leve
-        if response.status_code != 200:
+        # =========================
+        # DETECÇÃO REAL DE BLOQUEIO
+        # =========================
+        if (
+            response.status_code != 200
+            or "signin" in response.text.lower()
+            or len(response.text) < 8000
+        ):
+            print("⚠️ Possível bloqueio/login do LinkedIn")
+
             return CACHE_VAGAS or [{
-                "titulo": "LinkedIn bloqueou a requisição",
+                "titulo": "LinkedIn bloqueou ou exigiu login",
                 "link": "#",
                 "score": 0,
                 "candidatado": False
@@ -146,15 +154,23 @@ def home():
 
 @app.route("/candidatar/<path:link>")
 def candidatar(link):
-    link = unquote(link)
+    try:
+        link = unquote(link)
 
-    candidatas = carregar_json(ARQUIVO_CANDIDATAS)
+        if not link.startswith("http"):
+            return redirect("/")
 
-    if link not in candidatas:
-        candidatas.append(link)
-        salvar_json(ARQUIVO_CANDIDATAS, candidatas)
+        candidatas = carregar_json(ARQUIVO_CANDIDATAS) or []
 
-    return redirect("/")
+        if link not in candidatas:
+            candidatas.append(link)
+            salvar_json(ARQUIVO_CANDIDATAS, candidatas)
+
+        return redirect("/")
+
+    except Exception as e:
+        print("Erro candidatar:", e)
+        return redirect("/")
 
 
 @app.route("/health")
