@@ -1,83 +1,40 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Radar de Vagas</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+    <title>Vagas Daniel</title>
     <style>
-        body {
-            font-family: Arial;
-            background: #0f172a;
-            color: white;
-            margin: 0;
-        }
+        body { font-family: Arial; background: #f4f4f4; margin: 0; }
+        header { background: #111; color: white; padding: 15px; text-align: center; }
 
-        header {
-            background: #020617;
-            padding: 20px;
-            text-align: center;
-            font-size: 22px;
-            font-weight: bold;
-        }
+        .container { display: flex; gap: 20px; padding: 20px; }
 
-        .tabs {
-            display: flex;
-            justify-content: center;
-            margin-top: 10px;
-        }
+        .col { flex: 1; background: white; padding: 15px; border-radius: 10px; }
 
-        .tab {
-            padding: 10px 20px;
+        .tabs { display: flex; gap: 10px; margin-bottom: 10px; }
+
+        button {
+            padding: 8px 12px;
+            border: none;
             cursor: pointer;
-            background: #1e293b;
-            margin: 5px;
             border-radius: 5px;
-        }
-
-        .active {
-            background: #38bdf8;
-            color: black;
-        }
-
-        .container {
-            max-width: 900px;
-            margin: auto;
-            padding: 20px;
         }
 
         .vaga {
-            background: #1e293b;
-            padding: 15px;
-            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
             border-radius: 8px;
         }
 
-        a {
-            color: #38bdf8;
-            text-decoration: none;
-            font-weight: bold;
-        }
-
-        .btn {
-            margin-top: 10px;
-            padding: 8px 12px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        .apply {
-            background: #22c55e;
+        .aplicar {
+            background: green;
             color: white;
+            margin-top: 5px;
         }
 
-        .done {
-            background: gray;
-        }
-
-        .hidden {
-            display: none;
+        .filtro {
+            background: #333;
+            color: white;
         }
     </style>
 </head>
@@ -85,80 +42,84 @@
 <body>
 
 <header>
-    🚀 Radar de Vagas
+    <h2>Vagas Daniel</h2>
 </header>
-
-<div class="tabs">
-    <div class="tab active" onclick="mostrarAba('todas')">Vagas Total</div>
-    <div class="tab" onclick="mostrarAba('candidatas')">Já aplicadas</div>
-</div>
 
 <div class="container">
 
-    <!-- 🔹 TODAS -->
-    <div id="todas">
-        {% for vaga in vagas %}
-            {% if not vaga.candidatado %}
-                <div class="vaga">
-                    <a href="{{ vaga.link }}" target="_blank">
-                        {{ vaga.titulo }}
-                    </a>
+    <!-- VAGAS -->
+    <div class="col">
+        <div class="tabs">
+            <button onclick="carregar('12h')" class="filtro">Últimas 12h</button>
+            <button onclick="carregar('24h')" class="filtro">Últimas 24h</button>
+        </div>
 
-                    <br>
-
-                    <a href="/candidatar/{{ vaga.link }}">
-                        <button class="btn apply">Já apliquei</button>
-                    </a>
-                </div>
-            {% endif %}
-        {% endfor %}
+        <div id="vagas"></div>
     </div>
 
-    <!-- 🔹 CANDIDATAS -->
-    <div id="candidatas" class="hidden">
-
-        {% set has_candidatas = false %}
-
-        {% for vaga in vagas %}
-            {% if vaga.candidatado %}
-                {% set has_candidatas = true %}
-
-                <div class="vaga">
-                    <a href="{{ vaga.link }}" target="_blank">
-                        {{ vaga.titulo }}
-                    </a>
-
-                    <br>
-
-                    <button class="btn done">✅ Já aplicado</button>
-                </div>
-            {% endif %}
-        {% endfor %}
-
-        {% if not has_candidatas %}
-            <p>Nenhuma candidatura ainda.</p>
-        {% endif %}
-
+    <!-- APLICADAS -->
+    <div class="col">
+        <h3>Vagas Aplicadas</h3>
+        <div id="aplicadas"></div>
     </div>
 
 </div>
 
 <script>
-function mostrarAba(aba) {
-    document.getElementById("todas").classList.add("hidden");
-    document.getElementById("candidatas").classList.add("hidden");
 
-    document.getElementById(aba).classList.remove("hidden");
+async function carregar(filtro) {
+    const res = await fetch(`/api/vagas?filtro=${filtro}`);
+    const data = await res.json();
 
-    let tabs = document.querySelectorAll(".tab");
-    tabs.forEach(t => t.classList.remove("active"));
+    const div = document.getElementById("vagas");
+    div.innerHTML = "";
 
-    if (aba === "todas") {
-        tabs[0].classList.add("active");
-    } else {
-        tabs[1].classList.add("active");
-    }
+    data.forEach(v => {
+        div.innerHTML += `
+            <div class="vaga">
+                <b>${v.titulo}</b><br>
+                ${v.empresa}<br>
+                <small>${v.timestamp}</small><br>
+                <button class="aplicar" onclick="aplicar('${v.id}')">
+                    Já apliquei
+                </button>
+            </div>
+        `;
+    });
 }
+
+async function aplicar(id) {
+    await fetch("/api/marcar_aplicada", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({id})
+    });
+
+    carregar("24h");
+    carregarAplicadas();
+}
+
+async function carregarAplicadas() {
+    const res = await fetch("/api/aplicadas");
+    const data = await res.json();
+
+    const div = document.getElementById("aplicadas");
+    div.innerHTML = "";
+
+    data.forEach(v => {
+        div.innerHTML += `
+            <div class="vaga">
+                <b>${v.titulo}</b><br>
+                ${v.empresa}<br>
+                <small>${v.timestamp}</small>
+            </div>
+        `;
+    });
+}
+
+carregar("24h");
+carregarAplicadas();
+
 </script>
 
 </body>

@@ -1,160 +1,135 @@
-from flask import Flask, render_template, redirect
-import requests
+from flask import Flask, render_template, request, jsonify
+from datetime import datetime, timedelta
 import json
 import os
-import time
-from urllib.parse import unquote
 
 app = Flask(__name__)
 
-# =========================
-# CACHE
-# =========================
-CACHE_VAGAS = []
-ULTIMA_ATUALIZACAO = 0
+VAGAS_FILE = "vagas.json"
+APLICADAS_FILE = "aplicadas.json"
 
-ARQUIVO_CANDIDATAS = "vagas_candidatas.json"
 
-# =========================
-# JSON
-# =========================
-def carregar_json(arquivo):
-    if os.path.exists(arquivo):
-        try:
-            with open(arquivo, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return []
+# -----------------------------
+# Helpers
+# -----------------------------
+def load_json(file):
+    if os.path.exists(file):
+        with open(file, "r", encoding="utf-8") as f:
+            return json.load(f)
     return []
 
-def salvar_json(arquivo, dados):
-    try:
-        with open(arquivo, "w", encoding="utf-8") as f:
-            json.dump(dados, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print("Erro JSON:", e)
 
-# =========================
-# FONTES DE VAGAS (ESTÁVEIS)
-# =========================
+def save_json(file, data):
+    with open(file, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
-def fetch_greenhouse():
-    """
-    Exemplo API pública da Greenhouse (muitas empresas usam)
-    """
-    url = "https://boards-api.greenhouse.io/v1/boards/lyft/jobs?content=true"
-    try:
-        r = requests.get(url, timeout=10)
-        data = r.json()
 
-        vagas = []
-        for job in data.get("jobs", [])[:20]:
-            vagas.append({
-                "titulo": job.get("title"),
-                "link": job.get("absolute_url"),
-                "score": 1,
-                "candidatado": False
-            })
-        return vagas
-    except:
-        return []
+# -----------------------------
+# Simulador de vagas (substituir futuramente por API)
+# -----------------------------
+def get_vagas():
+    vagas = load_json(VAGAS_FILE)
+    aplicadas = load_json(APLICADAS_FILE)
 
-def fetch_lever():
-    """
-    API pública Lever (muito estável)
-    """
-    url = "https://api.lever.co/v0/postings/lever?mode=json"
-    try:
-        r = requests.get(url, timeout=10)
-        data = r.json()
+    return vagas, aplicadas
 
-        vagas = []
-        for job in data[:20]:
-            vagas.append({
-                "titulo": job.get("text"),
-                "link": job.get("hostedUrl"),
-                "score": 1,
-                "candidatado": False
-            })
-        return vagas
-    except:
-        return []
 
-# =========================
-# BUSCA UNIFICADA
-# =========================
-def buscar_vagas():
-    global CACHE_VAGAS, ULTIMA_ATUALIZACAO
+# -----------------------------
+# Filtragem de tempo
+# -----------------------------
+def filtrar_por_tempo(vagas, horas):
+    limite = datetime.now() - timedelta(hours=horas)
 
-    if time.time() - ULTIMA_ATUALIZACAO < 600 and CACHE_VAGAS:
-        print("⚡ Cache ativo")
-        return CACHE_VAGAS
-
-    print("🔄 Buscando vagas (APIs estáveis)...")
-
-    candidatas = carregar_json(ARQUIVO_CANDIDATAS)
-
-    vagas = []
-    vagas += fetch_greenhouse()
-    vagas += fetch_lever()
-
-    # normaliza + marca candidatas
+    filtradas = []
     for v in vagas:
-        v["candidatado"] = v["link"] in candidatas
+        data_vaga = datetime.fromisoformat(v["timestamp"])
+        if data_vaga >= limite:
+            filtradas.append(v)
 
-    if not vagas:
-        vagas = [{
-            "titulo": "Nenhuma vaga encontrada no momento",
-            "link": "#",
-            "score": 0,
-            "candidatado": False
-        }]
+    return sorted(filtradas, key=lambda x: x["timestamp"], reverse=True)
 
-    CACHE_VAGAS = vagas
-    ULTIMA_ATUALIZACAO = time.time()
 
-    return vagas
-
-# =========================
-# ROTAS
-# =========================
-
+# -----------------------------
+# Rotas
+# -----------------------------
 @app.route("/")
-def home():
-    try:
-        vagas = buscar_vagas()
-        return render_template("index.html", vagas=vagas)
-    except Exception as e:
-        print("ERRO:", repr(e))
-        return f"Erro interno: {repr(e)}"
+def index():
+    return render_template("index.html")
 
 
-@app.route("/candidatar/<path:link>")
-def candidatar(link):
-    try:
-        link = unquote(link)
+@app.route("/api/vagas")
+def vagas():
+    filtro = request.args.get("filtro", "24h")
 
-        candidatas = carregar_json(ARQUIVO_CANDIDATAS)
+    vagas, aplicadas = get_vagas()
 
-        if link not in candidatas:
-            candidatas.append(link)
-            salvar_json(ARQUIVO_CANDIDATAS, candidatas)
+    ids_aplicados = {v["id"] for v in aplicadas}
 
-        return redirect("/")
+    if filtro == "12h":
+        vagas_filtradas = filtrar_por_tempo(vagas, 12)
+    else:
+        vagas_filtradas = filtrar_por_tempo(vagas, 24)
 
-    except Exception as e:
-        print("Erro candidatar:", e)
-        return redirect("/")
+    # remover aplicadas da lista principal
+    vagas_filtradas = [v for v in vagas_filtradas if v["id"] not in ids_aplicados]
 
-
-@app.route("/health")
-def health():
-    return "ok"
+    return jsonify(vagas_filtradas)
 
 
-# =========================
-# RUN
-# =========================
+@app.route("/api/aplicadas")
+def aplicadas():
+    return jsonify(load_json(APLICADAS_FILE))
+
+
+@app.route("/api/marcar_aplicada", methods=["POST"])
+def marcar_aplicada():
+    data = request.json
+
+    vagas = load_json(VAGAS_FILE)
+    aplicadas = load_json(APLICADAS_FILE)
+
+    vaga = next((v for v in vagas if v["id"] == data["id"]), None)
+
+    if vaga and vaga not in aplicadas:
+        aplicadas.append(vaga)
+        save_json(APLICADAS_FILE, aplicadas)
+
+    return jsonify({"status": "ok"})
+
+
+# -----------------------------
+# MOCK inicial (caso vazio)
+# -----------------------------
+@app.route("/api/seed")
+def seed():
+    if not os.path.exists(VAGAS_FILE):
+        agora = datetime.now()
+
+        vagas_mock = [
+            {
+                "id": "1",
+                "titulo": "Analista de Sistemas",
+                "empresa": "Tech Brasil",
+                "timestamp": (agora - timedelta(hours=2)).isoformat()
+            },
+            {
+                "id": "2",
+                "titulo": "Engenheiro de Software",
+                "empresa": "Startup X",
+                "timestamp": (agora - timedelta(hours=10)).isoformat()
+            },
+            {
+                "id": "3",
+                "titulo": "Dev Backend Python",
+                "empresa": "AI Solutions",
+                "timestamp": (agora - timedelta(hours=30)).isoformat()
+            }
+        ]
+
+        save_json(VAGAS_FILE, vagas_mock)
+
+    return {"status": "seed ok"}
+
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True)
