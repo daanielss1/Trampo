@@ -8,79 +8,84 @@ from urllib.parse import unquote
 
 app = Flask(__name__)
 
-# 🔹 Cache (evita travamento no Render)
+# =========================
+# CACHE
+# =========================
 CACHE_VAGAS = []
 ULTIMA_ATUALIZACAO = 0
 
 ARQUIVO_CANDIDATAS = "vagas_candidatas.json"
 
-
-# 🔹 Utilidades JSON
+# =========================
+# JSON UTIL
+# =========================
 def carregar_json(arquivo):
     if os.path.exists(arquivo):
         try:
             with open(arquivo, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except:
+        except Exception as e:
+            print("Erro lendo JSON:", e)
             return []
     return []
-
 
 def salvar_json(arquivo, dados):
     try:
         with open(arquivo, "w", encoding="utf-8") as f:
             json.dump(dados, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print("Erro ao salvar JSON:", e)
+        print("Erro salvando JSON:", e)
 
-
-# 🔹 Buscar vagas (com proteção)
+# =========================
+# SCRAPING VAGAS
+# =========================
 def buscar_vagas():
     global CACHE_VAGAS, ULTIMA_ATUALIZACAO
 
-    # ⏱️ Cache de 10 minutos
+    # cache 10 min
     if time.time() - ULTIMA_ATUALIZACAO < 600 and CACHE_VAGAS:
-        print("⚡ Usando cache...")
+        print("⚡ Cache ativo")
         return CACHE_VAGAS
 
-    print("🔄 Buscando vagas no LinkedIn...")
+    print("🔄 Buscando vagas...")
 
     url = "https://www.linkedin.com/jobs/search?keywords=product%20owner&location=Brazil&f_TPR=r86400"
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-        "Connection": "keep-alive"
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
     }
+
+    KEYWORDS = ["product owner", "product manager", "coordenador de ti"]
 
     vagas = []
     candidatas = carregar_json(ARQUIVO_CANDIDATAS)
 
-    KEYWORDS = ["product owner", "product manager", "coordenador de ti"]
-
     try:
-        response = requests.get(url, headers=headers, timeout=8)
+        response = requests.get(url, headers=headers, timeout=10)
 
         print("Status:", response.status_code)
-        print("Tamanho HTML:", len(response.text))
+        print("HTML size:", len(response.text))
 
-        # 🔴 Se bloqueado → usa cache antigo
-        if response.status_code != 200 or len(response.text) < 10000:
-            print("⚠️ Possível bloqueio do LinkedIn")
-            return CACHE_VAGAS if CACHE_VAGAS else []
+        # bloqueio leve
+        if response.status_code != 200:
+            return CACHE_VAGAS or [{
+                "titulo": "LinkedIn bloqueou a requisição",
+                "link": "#",
+                "score": 0,
+                "candidatado": False
+            }]
 
         soup = BeautifulSoup(response.text, "html.parser")
 
         jobs = soup.find_all("a", class_="base-card__full-link")
 
-        # 🔄 fallback se estrutura mudou
         if not jobs:
-            print("⚠️ Estrutura mudou, fallback geral")
             jobs = soup.find_all("a")
 
         for job in jobs[:30]:
             try:
-                titulo = job.text.strip().lower() if job.text else ""
+                titulo = (job.text or "").strip().lower()
                 link = job.get("href")
 
                 if not link:
@@ -96,46 +101,49 @@ def buscar_vagas():
                     if "scrum" in titulo:
                         score += 1
 
-                    vaga = {
+                    vagas.append({
                         "titulo": titulo.title() if titulo else "Sem título",
                         "link": link,
                         "score": score,
                         "candidatado": link in candidatas
-                    }
-
-                    vagas.append(vaga)
+                    })
 
             except Exception as e:
-                print("Erro ao processar vaga:", e)
-                continue
+                print("Erro vaga:", e)
 
     except Exception as e:
-        print("❌ Erro geral scraping:", e)
-        return CACHE_VAGAS if CACHE_VAGAS else []
+        print("Erro scraping:", e)
+        return CACHE_VAGAS or []
 
-    # 🔴 Se não achou nada → evita tela vazia
     if not vagas:
-        print("⚠️ Nenhuma vaga encontrada")
-        return CACHE_VAGAS if CACHE_VAGAS else [
-            {
-                "titulo": "Nenhuma vaga encontrada no momento (LinkedIn pode ter bloqueado)",
-                "link": "#",
-                "score": 0,
-                "candidatado": False
-            }
-        ]
+        return CACHE_VAGAS or [{
+            "titulo": "Nenhuma vaga encontrada (possível bloqueio)",
+            "link": "#",
+            "score": 0,
+            "candidatado": False
+        }]
 
-    # 🔽 Ordena por score
     vagas = sorted(vagas, key=lambda x: x["score"], reverse=True)
 
-    # 💾 Atualiza cache
     CACHE_VAGAS = vagas
     ULTIMA_ATUALIZACAO = time.time()
 
     return vagas
 
+# =========================
+# ROTAS
+# =========================
 
-# 🔹 Marcar como candidato
+@app.route("/")
+def home():
+    try:
+        vagas = buscar_vagas()
+        return render_template("index.html", vagas=vagas)
+    except Exception as e:
+        print("ERRO COMPLETO:", repr(e))
+        return f"Erro interno: {repr(e)}"
+
+
 @app.route("/candidatar/<path:link>")
 def candidatar(link):
     link = unquote(link)
@@ -149,24 +157,14 @@ def candidatar(link):
     return redirect("/")
 
 
-# 🔹 Página principal
-@app.route("/")
-def home():
-    try:
-        vagas = buscar_vagas()
-        return render_template("index.html", vagas=vagas)
-    except Exception as e:
-        print("❌ Erro na rota /:", e)
-        return "Erro interno, tente novamente"
-
-
-# 🔹 Health check (teste rápido)
 @app.route("/health")
 def health():
     return "ok"
 
 
-# 🔹 Rodar local/Render
+# =========================
+# RUN
+# =========================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
