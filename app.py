@@ -1,6 +1,5 @@
 from flask import Flask, render_template, redirect
 import requests
-from bs4 import BeautifulSoup
 import json
 import os
 import time
@@ -17,15 +16,14 @@ ULTIMA_ATUALIZACAO = 0
 ARQUIVO_CANDIDATAS = "vagas_candidatas.json"
 
 # =========================
-# JSON UTIL
+# JSON
 # =========================
 def carregar_json(arquivo):
     if os.path.exists(arquivo):
         try:
             with open(arquivo, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception as e:
-            print("Erro lendo JSON:", e)
+        except:
             return []
     return []
 
@@ -34,108 +32,83 @@ def salvar_json(arquivo, dados):
         with open(arquivo, "w", encoding="utf-8") as f:
             json.dump(dados, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print("Erro salvando JSON:", e)
+        print("Erro JSON:", e)
 
 # =========================
-# SCRAPING VAGAS
+# FONTES DE VAGAS (ESTÁVEIS)
+# =========================
+
+def fetch_greenhouse():
+    """
+    Exemplo API pública da Greenhouse (muitas empresas usam)
+    """
+    url = "https://boards-api.greenhouse.io/v1/boards/lyft/jobs?content=true"
+    try:
+        r = requests.get(url, timeout=10)
+        data = r.json()
+
+        vagas = []
+        for job in data.get("jobs", [])[:20]:
+            vagas.append({
+                "titulo": job.get("title"),
+                "link": job.get("absolute_url"),
+                "score": 1,
+                "candidatado": False
+            })
+        return vagas
+    except:
+        return []
+
+def fetch_lever():
+    """
+    API pública Lever (muito estável)
+    """
+    url = "https://api.lever.co/v0/postings/lever?mode=json"
+    try:
+        r = requests.get(url, timeout=10)
+        data = r.json()
+
+        vagas = []
+        for job in data[:20]:
+            vagas.append({
+                "titulo": job.get("text"),
+                "link": job.get("hostedUrl"),
+                "score": 1,
+                "candidatado": False
+            })
+        return vagas
+    except:
+        return []
+
+# =========================
+# BUSCA UNIFICADA
 # =========================
 def buscar_vagas():
     global CACHE_VAGAS, ULTIMA_ATUALIZACAO
 
-    # cache 10 min
     if time.time() - ULTIMA_ATUALIZACAO < 600 and CACHE_VAGAS:
         print("⚡ Cache ativo")
         return CACHE_VAGAS
 
-    print("🔄 Buscando vagas...")
+    print("🔄 Buscando vagas (APIs estáveis)...")
 
-    url = "https://www.linkedin.com/jobs/search?keywords=product%20owner&location=Brazil&f_TPR=r86400"
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
-        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1"
-}
-    }
-
-    KEYWORDS = ["product owner", "product manager", "coordenador de ti"]
+    candidatas = carregar_json(ARQUIVO_CANDIDATAS)
 
     vagas = []
-    candidatas = carregar_json(ARQUIVO_CANDIDATAS) or []
+    vagas += fetch_greenhouse()
+    vagas += fetch_lever()
 
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-
-        print("Status:", response.status_code)
-        print("HTML size:", len(response.text))
-
-        # =========================
-        # DETECÇÃO REAL DE BLOQUEIO
-        # =========================
-        if (
-            response.status_code != 200
-            or "signin" in response.text.lower()
-            or len(response.text) < 8000
-        ):
-            print("⚠️ Possível bloqueio/login do LinkedIn")
-
-            return CACHE_VAGAS or [{
-                "titulo": "LinkedIn bloqueou ou exigiu login",
-                "link": "#",
-                "score": 0,
-                "candidatado": False
-            }]
-
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        jobs = soup.find_all("a", class_="base-card__full-link")
-
-        if not jobs:
-            jobs = soup.find_all("a")
-
-        for job in jobs[:30]:
-            try:
-                titulo = (job.text or "").strip().lower()
-                link = job.get("href")
-
-                if not link:
-                    continue
-
-                if any(k in titulo for k in KEYWORDS):
-
-                    score = 0
-                    if "senior" in titulo:
-                        score += 2
-                    if "agile" in titulo:
-                        score += 1
-                    if "scrum" in titulo:
-                        score += 1
-
-                    vagas.append({
-                        "titulo": titulo.title() if titulo else "Sem título",
-                        "link": link,
-                        "score": score,
-                        "candidatado": link in candidatas
-                    })
-
-            except Exception as e:
-                print("Erro vaga:", e)
-
-    except Exception as e:
-        print("Erro scraping:", e)
-        return CACHE_VAGAS or []
+    # normaliza + marca candidatas
+    for v in vagas:
+        v["candidatado"] = v["link"] in candidatas
 
     if not vagas:
-        return CACHE_VAGAS or [{
-            "titulo": "Nenhuma vaga encontrada (possível bloqueio)",
+        vagas = [{
+            "titulo": "Nenhuma vaga encontrada no momento",
             "link": "#",
             "score": 0,
             "candidatado": False
         }]
-
-    vagas = sorted(vagas, key=lambda x: x["score"], reverse=True)
 
     CACHE_VAGAS = vagas
     ULTIMA_ATUALIZACAO = time.time()
@@ -152,7 +125,7 @@ def home():
         vagas = buscar_vagas()
         return render_template("index.html", vagas=vagas)
     except Exception as e:
-        print("ERRO COMPLETO:", repr(e))
+        print("ERRO:", repr(e))
         return f"Erro interno: {repr(e)}"
 
 
@@ -161,10 +134,7 @@ def candidatar(link):
     try:
         link = unquote(link)
 
-        if not link.startswith("http"):
-            return redirect("/")
-
-        candidatas = carregar_json(ARQUIVO_CANDIDATAS) or []
+        candidatas = carregar_json(ARQUIVO_CANDIDATAS)
 
         if link not in candidatas:
             candidatas.append(link)
