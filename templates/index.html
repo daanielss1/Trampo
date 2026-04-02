@@ -7,20 +7,49 @@
 
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: Arial;
             background: #0f172a;
-            color: #fff;
-            padding: 20px;
+            color: white;
+            margin: 0;
         }
 
-        h1 {
+        header {
+            background: #020617;
+            padding: 20px;
             text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: #1e293b;
+            margin: 5px;
+            border-radius: 5px;
+        }
+
+        .active {
+            background: #38bdf8;
+            color: black;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+            padding: 20px;
         }
 
         .vaga {
             background: #1e293b;
             padding: 15px;
-            margin: 10px 0;
+            margin-bottom: 15px;
             border-radius: 8px;
         }
 
@@ -30,27 +59,99 @@
             font-weight: bold;
         }
 
-        .score {
-            color: #facc15;
+        .btn {
+            margin-top: 10px;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .apply {
+            background: #22c55e;
+            color: white;
+        }
+
+        .done {
+            background: gray;
+        }
+
+        .hidden {
+            display: none;
         }
     </style>
 </head>
+
 <body>
 
-    <h1>🚀 Vagas (últimas 24h)</h1>
+<header>
+    🚀 Radar de Vagas
+</header>
 
-    {% if vagas %}
+<div class="tabs">
+    <div class="tab active" onclick="mostrarAba('todas')">Vagas Total</div>
+    <div class="tab" onclick="mostrarAba('candidatas')">Já aplicadas</div>
+</div>
+
+<div class="container">
+
+    <!-- 🔹 TODAS -->
+    <div id="todas">
         {% for vaga in vagas %}
+            {% if not vaga.candidatado %}
             <div class="vaga">
                 <a href="{{ vaga.link }}" target="_blank">
                     {{ vaga.titulo }}
                 </a>
-                <p class="score">Score: {{ vaga.score }}</p>
+
+                <br>
+
+                <a href="/candidatar/{{ vaga.link }}">
+                    <button class="btn apply">Já apliquei</button>
+                </a>
             </div>
+            {% endif %}
         {% endfor %}
-    {% else %}
-        <p>Nenhuma vaga encontrada.</p>
-    {% endif %}
+    </div>
+
+    <!-- 🔹 CANDIDATAS -->
+    <div id="candidatas" class="hidden">
+        {% for vaga in vagas %}
+            {% if vaga.candidatado %}
+            <div class="vaga">
+                <a href="{{ vaga.link }}" target="_blank">
+                    {{ vaga.titulo }}
+                </a>
+
+                <br>
+
+                <button class="btn done">✅ Já aplicado</button>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p>Nenhuma candidatura ainda.</p>
+        {% endif %}
+    </div>
+
+</div>
+
+<script>
+function mostrarAba(aba) {
+    document.getElementById("todas").classList.add("hidden");
+    document.getElementById("candidatas").classList.add("hidden");
+
+    document.getElementById(aba).classList.remove("hidden");
+
+    let tabs = document.querySelectorAll(".tab");
+    tabs.forEach(t => t.classList.remove("active"));
+
+    if (aba === "todas") {
+        tabs[0].classList.add("active");
+    } else {
+        tabs[1].classList.add("active");
+    }
+}
+</script>
 
 </body>
 </html>

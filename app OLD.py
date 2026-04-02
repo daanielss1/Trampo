@@ -1,10 +1,9 @@
-from flask import Flask, render_template, redirect
+from flask import Flask, render_template
 import requests
 from bs4 import BeautifulSoup
 import json
 import os
 import time
-from urllib.parse import unquote
 
 app = Flask(__name__)
 
@@ -19,7 +18,7 @@ ARQUIVO_CANDIDATAS = "vagas_candidatas.json"
 def carregar_json(arquivo):
     if os.path.exists(arquivo):
         try:
-            with open(arquivo, "r", encoding="utf-8") as f:
+            with open(arquivo, "r") as f:
                 return json.load(f)
         except:
             return []
@@ -28,10 +27,10 @@ def carregar_json(arquivo):
 
 def salvar_json(arquivo, dados):
     try:
-        with open(arquivo, "w", encoding="utf-8") as f:
-            json.dump(dados, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print("Erro ao salvar JSON:", e)
+        with open(arquivo, "w") as f:
+            json.dump(dados, f)
+    except:
+        pass
 
 
 # 🔹 Buscar vagas (com proteção)
@@ -133,20 +132,6 @@ def buscar_vagas():
     ULTIMA_ATUALIZACAO = time.time()
 
     return vagas
-
-
-# 🔹 Marcar como candidato
-@app.route("/candidatar/<path:link>")
-def candidatar(link):
-    link = unquote(link)
-
-    candidatas = carregar_json(ARQUIVO_CANDIDATAS)
-
-    if link not in candidatas:
-        candidatas.append(link)
-        salvar_json(ARQUIVO_CANDIDATAS, candidatas)
-
-    return redirect("/")
 
 
 # 🔹 Página principal
